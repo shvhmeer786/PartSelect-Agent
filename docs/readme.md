@@ -3,6 +3,9 @@
 ## Project Overview
 PartSelect Agent is a conversational AI system designed to help users find, understand, and purchase appliance parts. The agent uses LLM-powered natural language processing to understand user queries, extract relevant parameters, and provide helpful responses for appliance part selection and diagnosis.
 
+![PartSelect_Agent_Architecture](https://github.com/user-attachments/assets/944119dd-a2bc-4055-b57c-8ddcef494702)
+
+
 ## Quick Start Guide
 
 ### All-in-One Solution
