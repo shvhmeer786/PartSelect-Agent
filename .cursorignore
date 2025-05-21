@@ -1,0 +1,3 @@
+# Cursor ignore file
+# The ! pattern means "don't ignore"
+!.env 

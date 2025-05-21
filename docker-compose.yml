@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # MongoDB for storing product and documentation data
+  mongodb:
+    image: mongo:6
+    container_name: partselect-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-partselect}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-password}
+    healthcheck:
+      test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - partselect-network
+
+  # Redis for session and cart management
+  redis:
+    image: redis:7-alpine
+    container_name: partselect-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - partselect-network
+
+  # Pinecone vector database emulator
+  pinecone:
+    build:
+      context: .
+      dockerfile: Dockerfile.pinecone
+    container_name: partselect-pinecone
+    restart: always
+    ports:
+      - "8080:8080"
+    networks:
+      - partselect-network
+    depends_on:
+      - mongodb
+
+  # FastAPI server
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: partselect-server
+    restart: always
+    ports:
+      - "9000:9000"
+    environment:
+      - MONGODB_URI=mongodb://${MONGO_USERNAME:-partselect}:${MONGO_PASSWORD:-password}@mongodb:27017/
+      - REDIS_URI=redis://redis:6379/0
+      - PINECONE_API_KEY=${PINECONE_API_KEY:-}
+      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT:-us-west1-gcp}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-partselect}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./src/server:/app/server
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      pinecone:
+        condition: service_started
+    networks:
+      - partselect-network
+
+  # React client with Nginx
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: partselect-client
+    restart: always
+    ports:
+      - "9003:9003"
+    volumes:
+      - ./src/client/public:/usr/share/nginx/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - server
+    networks:
+      - partselect-network
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+
+networks:
+  partselect-network:
+    driver: bridge
